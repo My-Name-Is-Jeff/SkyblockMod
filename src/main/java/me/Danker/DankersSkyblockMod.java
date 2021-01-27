@@ -35,9 +35,7 @@ import net.minecraft.inventory.Container;
 import net.minecraft.inventory.ContainerChest;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.inventory.Slot;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemMap;
-import net.minecraft.item.ItemStack;
+import net.minecraft.item.*;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.*;
 import net.minecraft.world.World;
@@ -108,6 +106,9 @@ public class DankersSkyblockMod {
     public static boolean firstLaunch = false;
     static String lastPartyDisbander = "";
     static BlockPos puzzlerSolution = null;
+    static ItemStack petItemLastAttempted;
+    static long timeOfLastPetItemAttempt;
+    static int petItemAttemptsRequired;
 
     public static final ResourceLocation CAKE_ICON = new ResourceLocation("dsm", "icons/cake.png");
     public static final ResourceLocation BONZO_ICON = new ResourceLocation("dsm", "icons/bonzo.png");
@@ -2577,7 +2578,7 @@ public class DankersSkyblockMod {
             if (ToggleCommand.superpairsToggled && chestName.contains("Superpairs (")) {
                 if (Item.getIdFromItem(item.getItem()) != 95) return;
                 if (item.getDisplayName().contains("Click any button") || item.getDisplayName().contains("Click a second button") || item.getDisplayName().contains("Next button is instantly rewarded") || item.getDisplayName().contains("Stained Glass")) {
-                    Slot slot = ((GuiChest) mc.currentScreen).getSlotUnderMouse();
+                    Slot slot = Utils.getSlotUnderMouse((GuiChest) mc.currentScreen);
                     ItemStack itemStack = experimentTableSlots[slot.getSlotIndex()];
                     if (itemStack == null) return;
                     String itemName = itemStack.getDisplayName();
@@ -3272,6 +3273,42 @@ public class DankersSkyblockMod {
         if (item == null) return;
 
         if (event.action == PlayerInteractEvent.Action.RIGHT_CLICK_AIR) {
+
+            if (ToggleCommand.petItemConfirmationToggled) {
+                String itemId = Utils.getSkyBlockItemID(item);
+                if (itemId != null ) {
+                    if (itemId.startsWith("PET_ITEM")) {
+                        if (petItemLastAttempted == null) {
+                            petItemLastAttempted = item;
+                            timeOfLastPetItemAttempt = System.currentTimeMillis();
+                            petItemAttemptsRequired = 2;
+                            mc.thePlayer.addChatMessage(new ChatComponentText(ERROR_COLOUR + String.format("Danker's Skyblock Mod stopped you from using that pet item! Click %s more %s to apply!", petItemAttemptsRequired, petItemAttemptsRequired > 1 ? "times": "time")));
+                            event.setCanceled(true);
+                            return;
+                        } else {
+                            if (System.currentTimeMillis() - timeOfLastPetItemAttempt > 5000 || !ItemStack.areItemStacksEqual(item, petItemLastAttempted)) {
+                                petItemLastAttempted = item;
+                                timeOfLastPetItemAttempt = System.currentTimeMillis();
+                                petItemAttemptsRequired = 2;
+                                mc.thePlayer.addChatMessage(new ChatComponentText(ERROR_COLOUR + String.format("Danker's Skyblock Mod stopped you from using that pet item! Click %s more %s to apply!", petItemAttemptsRequired, petItemAttemptsRequired > 1 ? "times": "time")));
+                                event.setCanceled(true);
+                                return;
+                            } else {
+                                petItemAttemptsRequired--;
+                                if (petItemAttemptsRequired > 0) {
+                                    timeOfLastPetItemAttempt = System.currentTimeMillis();
+                                    mc.thePlayer.addChatMessage(new ChatComponentText(ERROR_COLOUR + String.format("Danker's Skyblock Mod stopped you from using that pet item! Click %s more %s to apply!", petItemAttemptsRequired, petItemAttemptsRequired > 1 ? "times": "time")));
+                                    event.setCanceled(true);
+                                    return;
+                                } else {
+                                    petItemLastAttempted = null;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             if (ToggleCommand.aotdToggled && item.getDisplayName().contains("Aspect of the Dragons")) {
                 event.setCanceled(true);
             }
@@ -3458,6 +3495,8 @@ public class DankersSkyblockMod {
 
     @SubscribeEvent
     public void onAttackingEntity(AttackEntityEvent event) {
+        if (event.entity != mc.thePlayer) return;
+
         if (ToggleCommand.notifySlayerSlainToggled && (event.target instanceof EntityZombie || event.target instanceof EntitySpider || event.target instanceof EntityWolf)) {
             List<String> scoreboard = ScoreboardHandler.getSidebarLines();
 
@@ -3499,7 +3538,7 @@ public class DankersSkyblockMod {
                 // a lot of declarations here, if you get scarred, my bad
                 GuiChest chest = (GuiChest) event.gui;
                 IInventory inventory = ((ContainerChest) containerChest).getLowerChestInventory();
-                Slot mouseSlot = chest.getSlotUnderMouse();
+                Slot mouseSlot = Utils.getSlotUnderMouse(chest);
                 if (mouseSlot == null) return;
                 ItemStack item = mouseSlot.getStack();
                 String inventoryName = inventory.getDisplayName().getUnformattedText();
@@ -3561,56 +3600,6 @@ public class DankersSkyblockMod {
                         mc.thePlayer.addChatMessage(new ChatComponentText(ERROR_COLOUR + "Danker's Skyblock Mod has stopped you from salvaging that item!"));
                         event.setCanceled(true);
                         return;
-                    }
-                }
-
-                if (inventoryName.endsWith(" Chest") && item != null && item.getDisplayName().contains("Open Reward Chest")) {
-                    List<String> tooltip = item.getTooltip(mc.thePlayer, mc.gameSettings.advancedItemTooltips);
-                    for (String lineUnclean : tooltip) {
-                        String line = StringUtils.stripControlCodes(lineUnclean);
-                        if (line.contains("FREE")) {
-                            break;
-                        } else if (line.contains(" Coins")) {
-                            int coinsSpent = Integer.parseInt(line.substring(0, line.indexOf(" ")).replaceAll(",", ""));
-
-                            List<String> scoreboard = ScoreboardHandler.getSidebarLines();
-                            for (String s : scoreboard) {
-                                String sCleaned = ScoreboardHandler.cleanSB(s);
-                                if (sCleaned.contains("The Catacombs (")) {
-                                    if (sCleaned.contains("F1")) {
-                                        LootCommand.f1CoinsSpent += coinsSpent;
-                                        LootCommand.f1CoinsSpentSession += coinsSpent;
-                                        ConfigHandler.writeDoubleConfig("catacombs", "floorOneCoins", LootCommand.f1CoinsSpent);
-                                    } else if (sCleaned.contains("F2")) {
-                                        LootCommand.f2CoinsSpent += coinsSpent;
-                                        LootCommand.f2CoinsSpentSession += coinsSpent;
-                                        ConfigHandler.writeDoubleConfig("catacombs", "floorTwoCoins", LootCommand.f2CoinsSpent);
-                                    } else if (sCleaned.contains("F3")) {
-                                        LootCommand.f3CoinsSpent += coinsSpent;
-                                        LootCommand.f3CoinsSpentSession += coinsSpent;
-                                        ConfigHandler.writeDoubleConfig("catacombs", "floorThreeCoins", LootCommand.f3CoinsSpent);
-                                    } else if (sCleaned.contains("F4")) {
-                                        LootCommand.f4CoinsSpent += coinsSpent;
-                                        LootCommand.f4CoinsSpentSession += coinsSpent;
-                                        ConfigHandler.writeDoubleConfig("catacombs", "floorFourCoins", LootCommand.f4CoinsSpent);
-                                    } else if (sCleaned.contains("F5")) {
-                                        LootCommand.f5CoinsSpent += coinsSpent;
-                                        LootCommand.f5CoinsSpentSession += coinsSpent;
-                                        ConfigHandler.writeDoubleConfig("catacombs", "floorFiveCoins", LootCommand.f5CoinsSpent);
-                                    } else if (sCleaned.contains("F6")) {
-                                        LootCommand.f6CoinsSpent += coinsSpent;
-                                        LootCommand.f6CoinsSpentSession += coinsSpent;
-                                        ConfigHandler.writeDoubleConfig("catacombs", "floorSixCoins", LootCommand.f6CoinsSpent);
-                                    } else if (sCleaned.contains("F7")) {
-                                        LootCommand.f7CoinsSpent += coinsSpent;
-                                        LootCommand.f7CoinsSpentSession += coinsSpent;
-                                        ConfigHandler.writeDoubleConfig("catacombs", "floorSevenCoins", LootCommand.f7CoinsSpent);
-                                    }
-                                    break;
-                                }
-                            }
-                            break;
-                        }
                     }
                 }
 
@@ -3730,6 +3719,56 @@ public class DankersSkyblockMod {
                     }
 
                     event.setCanceled(shouldCancel && !Keyboard.isKeyDown(Keyboard.KEY_LCONTROL) && !Keyboard.isKeyDown(Keyboard.KEY_RCONTROL));
+                }
+
+                if (inventoryName.endsWith(" Chest") && item != null && item.getDisplayName().contains("Open Reward Chest")) {
+                    List<String> tooltip = item.getTooltip(mc.thePlayer, mc.gameSettings.advancedItemTooltips);
+                    for (String lineUnclean : tooltip) {
+                        String line = StringUtils.stripControlCodes(lineUnclean);
+                        if (line.contains("FREE")) {
+                            break;
+                        } else if (line.contains(" Coins")) {
+                            int coinsSpent = Integer.parseInt(line.substring(0, line.indexOf(" ")).replaceAll(",", ""));
+
+                            List<String> scoreboard = ScoreboardHandler.getSidebarLines();
+                            for (String s : scoreboard) {
+                                String sCleaned = ScoreboardHandler.cleanSB(s);
+                                if (sCleaned.contains("The Catacombs (")) {
+                                    if (sCleaned.contains("F1")) {
+                                        LootCommand.f1CoinsSpent += coinsSpent;
+                                        LootCommand.f1CoinsSpentSession += coinsSpent;
+                                        ConfigHandler.writeDoubleConfig("catacombs", "floorOneCoins", LootCommand.f1CoinsSpent);
+                                    } else if (sCleaned.contains("F2")) {
+                                        LootCommand.f2CoinsSpent += coinsSpent;
+                                        LootCommand.f2CoinsSpentSession += coinsSpent;
+                                        ConfigHandler.writeDoubleConfig("catacombs", "floorTwoCoins", LootCommand.f2CoinsSpent);
+                                    } else if (sCleaned.contains("F3")) {
+                                        LootCommand.f3CoinsSpent += coinsSpent;
+                                        LootCommand.f3CoinsSpentSession += coinsSpent;
+                                        ConfigHandler.writeDoubleConfig("catacombs", "floorThreeCoins", LootCommand.f3CoinsSpent);
+                                    } else if (sCleaned.contains("F4")) {
+                                        LootCommand.f4CoinsSpent += coinsSpent;
+                                        LootCommand.f4CoinsSpentSession += coinsSpent;
+                                        ConfigHandler.writeDoubleConfig("catacombs", "floorFourCoins", LootCommand.f4CoinsSpent);
+                                    } else if (sCleaned.contains("F5")) {
+                                        LootCommand.f5CoinsSpent += coinsSpent;
+                                        LootCommand.f5CoinsSpentSession += coinsSpent;
+                                        ConfigHandler.writeDoubleConfig("catacombs", "floorFiveCoins", LootCommand.f5CoinsSpent);
+                                    } else if (sCleaned.contains("F6")) {
+                                        LootCommand.f6CoinsSpent += coinsSpent;
+                                        LootCommand.f6CoinsSpentSession += coinsSpent;
+                                        ConfigHandler.writeDoubleConfig("catacombs", "floorSixCoins", LootCommand.f6CoinsSpent);
+                                    } else if (sCleaned.contains("F7")) {
+                                        LootCommand.f7CoinsSpent += coinsSpent;
+                                        LootCommand.f7CoinsSpentSession += coinsSpent;
+                                        ConfigHandler.writeDoubleConfig("catacombs", "floorSevenCoins", LootCommand.f7CoinsSpent);
+                                    }
+                                    break;
+                                }
+                            }
+                            break;
+                        }
+                    }
                 }
 
                 if (!BlockSlayerCommand.onlySlayerName.equals("") && item != null) {

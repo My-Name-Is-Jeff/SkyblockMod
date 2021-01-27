@@ -7,6 +7,8 @@ import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.ScaledResolution;
+import net.minecraft.client.gui.inventory.GuiChest;
+import net.minecraft.client.gui.inventory.GuiContainer;
 import net.minecraft.client.network.NetworkPlayerInfo;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.RenderHelper;
@@ -19,11 +21,13 @@ import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.item.EntityItemFrame;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Blocks;
+import net.minecraft.inventory.Slot;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.scoreboard.ScoreObjective;
 import net.minecraft.util.*;
+import net.minecraftforge.fml.common.ObfuscationReflectionHelper;
 import org.lwjgl.opengl.GL11;
 
 import java.awt.*;
@@ -274,6 +278,35 @@ public class Utils {
 	}
 
 	//Taken from SkyblockAddons
+	public static NBTTagCompound getExtraAttributes(ItemStack item) {
+		if (item == null || !item.hasTagCompound()) {
+			return null;
+		}
+
+		return item.getSubCompound("ExtraAttributes", false);
+	}
+
+	public static String getSkyBlockItemID(ItemStack item) {
+		final int NBT_INTEGER = 3;
+		final int NBT_STRING = 8;
+		final int NBT_LIST = 9;
+		final int NBT_COMPOUND = 10;
+		if (item == null) {
+			return null;
+		}
+
+		NBTTagCompound extraAttributes = getExtraAttributes(item);
+		if (extraAttributes == null) {
+			return null;
+		}
+
+		if (!extraAttributes.hasKey("id", NBT_STRING)) {
+			return null;
+		}
+
+		return extraAttributes.getString("id");
+	}
+
 	public static List<String> getItemLore(ItemStack itemStack) {
 		final int NBT_INTEGER = 3;
 		final int NBT_STRING = 8;
@@ -297,6 +330,24 @@ public class Utils {
 
 		return Collections.emptyList();
 	}
+
+	public static void renderItem(ItemStack item, float x, float y, float z) {
+
+		GlStateManager.enableRescaleNormal();
+		RenderHelper.enableGUIStandardItemLighting();
+		GlStateManager.enableDepth();
+
+		GlStateManager.pushMatrix();
+		GlStateManager.translate(x, y, z);
+		Minecraft.getMinecraft().getRenderItem().renderItemIntoGUI(item, 0, 0);
+		GlStateManager.popMatrix();
+
+		GlStateManager.disableDepth();
+		RenderHelper.disableStandardItemLighting();
+		GlStateManager.disableRescaleNormal();
+	}
+
+	//End taken from SBA
 
 	public static boolean hasRightClickAbility(ItemStack itemStack) {
 		return Utils.getItemLore(itemStack).stream().anyMatch(line -> {
@@ -413,22 +464,6 @@ public class Utils {
 		GlStateManager.popMatrix();
 	}
 
-	public static void renderItem(ItemStack item, float x, float y, float z) {
-
-		GlStateManager.enableRescaleNormal();
-		RenderHelper.enableGUIStandardItemLighting();
-		GlStateManager.enableDepth();
-
-		GlStateManager.pushMatrix();
-		GlStateManager.translate(x, y, z);
-		Minecraft.getMinecraft().getRenderItem().renderItemIntoGUI(item, 0, 0);
-		GlStateManager.popMatrix();
-
-		GlStateManager.disableDepth();
-		RenderHelper.disableStandardItemLighting();
-		GlStateManager.disableRescaleNormal();
-	}
-	
 	public static BlockPos getFirstBlockPosAfterVectors(Minecraft mc, Vec3 pos1, Vec3 pos2, int strength, int distance) {
 		double x = pos2.xCoord - pos1.xCoord;
 		double y = pos2.yCoord - pos1.yCoord;
@@ -482,6 +517,10 @@ public class Utils {
 			default:
 				return null;
 		}
+	}
+
+	public static Slot getSlotUnderMouse(GuiContainer gui) {
+    	return ObfuscationReflectionHelper.getPrivateValue(GuiContainer.class, gui, "theSlot", "field_147006_u");
 	}
 	
 }
