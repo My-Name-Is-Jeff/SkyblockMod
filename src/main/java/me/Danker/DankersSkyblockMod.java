@@ -497,7 +497,7 @@ public class DankersSkyblockMod {
 						}
 						timeSinceGained = System.currentTimeMillis() / 1000;
 						
-						int limit = section.contains("Farming") || section.contains("Enchanting") ? 60 : 50;
+						int limit = section.contains("Farming") || section.contains("Enchanting") || section.contains("Mining") ? 60 : 50;
 						double currentXP = Double.parseDouble(section.substring(section.indexOf("(") + 1, section.indexOf("/")).replace(",", ""));
     					int xpToLevelUp = Integer.parseInt(section.substring(section.indexOf("/") + 1, section.indexOf(")")).replaceAll(",", ""));
     					xpLeft = xpToLevelUp - currentXP;
@@ -565,7 +565,7 @@ public class DankersSkyblockMod {
     					double currentXp = Double.parseDouble(section.substring(section.indexOf("(") + 1, section.indexOf("/")).replace(",", ""));
     					int limit;
     					int totalXp;
-    					if (section.contains("Farming") || section.contains("Enchanting")) {
+    					if (section.contains("Farming") || section.contains("Enchanting") || section.contains("Mining")) {
     						limit = 60;
     						totalXp = 111672425;
     					} else {
@@ -3026,7 +3026,7 @@ public class DankersSkyblockMod {
 
                 if (blazeMode == 0 && (highestBlazeLabel != null || lowestBlazeLabel != null)) {
                     new Thread(() -> {
-                        ScoreboardHandler.getSidebarLines().stream().forEach(l -> {
+                        ScoreboardHandler.getSidebarLines().forEach(l -> {
                             String line = ScoreboardHandler.cleanSB(l);
                             if (line.contains("-96,-204")) {
                                 blazeMode = -1;
@@ -4073,6 +4073,58 @@ public class DankersSkyblockMod {
             }
         }
     }
+
+    @SubscribeEvent
+    public void onGuiDrawPost(GuiScreenEvent.DrawScreenEvent.Post event) {
+        if (!Utils.inSkyblock) return;
+        if (event.gui instanceof GuiChest) {
+            GuiChest inventory = (GuiChest) event.gui;
+            Container containerChest = inventory.inventorySlots;
+            if (containerChest instanceof ContainerChest) {
+                ScaledResolution sr = new ScaledResolution(mc);
+                FontRenderer fr = mc.fontRendererObj;
+                int guiLeft = (sr.getScaledWidth() - 176) / 2;
+                int guiTop = (sr.getScaledHeight() - 222) / 2;
+
+                List<Slot> invSlots = inventory.inventorySlots.inventorySlots;
+                String displayName = ((ContainerChest) containerChest).getLowerChestInventory().getDisplayName().getUnformattedText().trim();
+                int chestSize = inventory.inventorySlots.inventorySlots.size();
+
+                if (ToggleCommand.spiritLeapNamesToggled && Utils.inDungeons && displayName.equals("Spirit Leap")) {
+                    int people = 0;
+                    for (Slot slot : invSlots) {
+                        if (slot.inventory == mc.thePlayer.inventory) continue;
+                        if (slot.getHasStack()) {
+                            ItemStack item = slot.getStack();
+                            if (item.getItem() == Items.skull) {
+                                people++;
+                                String name = item.getDisplayName();
+
+                                //slot is 16x16
+                                int x = guiLeft + slot.xDisplayPosition + 8;
+                                int y = guiTop + slot.yDisplayPosition;
+                                // Move down when chest isn't 6 rows
+                                if (chestSize != 90) y += (6 - (chestSize - 36) / 9) * 9;
+
+                                if (people % 2 != 0) {
+                                    y -= 15;
+                                } else {
+                                    y += 20;
+                                }
+
+                                String text = fr.trimStringToWidth(name, 32);
+
+                                GL11.glTranslated(0, 0, 10);
+                                fr.drawStringWithShadow(text, (x - fr.getStringWidth(text) / 2), y, new Color(255, 0, 0).getRGB());
+                                GL11.glTranslated(0, 0, -10);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
 
     public boolean isKeyBindActive(KeyBinding bind) {
         if (bind.isPressed()) return true;
