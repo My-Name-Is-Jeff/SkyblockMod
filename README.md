@@ -1,6 +1,8 @@
 # Danker's Skyblock Mod (MyNameIsJeff's Fork)
 Fork of a mod that brings QOL changes that enhance your Hypixel Skyblock experience.
 
+**This fork is now unmaintained. If you would like similar features please use [Skytils](https://github.com/Skytils/SkytilsMod/)**.
+
 [Latest Changelog](https://github.com/bowser0000/SkyblockMod/pull/62)
 
 [Manual Build](https://github.com/My-Name-Is-Jeff/SkyblockMod/releases/tag/v1.8.5-beta8)
